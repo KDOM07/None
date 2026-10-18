@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mudda Freedom · Plan calculator</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#183d34;background:#f5f5ef;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:24px 6%;border-bottom:1px solid #d7dfd6;background:#fff}header strong{font-size:22px;letter-spacing:-1px}header span{float:right;font-size:13px;background:#edf3d8;padding:5px 12px;border-radius:20px}main{max-width:1080px;margin:auto;padding:40px 24px}h1{font-size:clamp(30px,5vw,48px);line-height:1.12;letter-spacing:-2px;margin:12px 0 20px}h2{font-size:22px;margin-top:0}p{max-width:700px;color:#52645b}.eyebrow{font-size:12px;font-weight:750;letter-spacing:2px}.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start}.card{background:#fff;border:1px solid #dce3d8;border-radius:18px;padding:25px;margin:20px 0}.fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{display:block;font-size:14px;font-weight:650}input,select{font:inherit;width:100%;padding:11px;border:1px solid #98aa9f;border-radius:8px;background:#fff;color:#183d34;margin:6px 0 12px}small{display:block;font-weight:400;color:#52645b}button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:12px 18px;font-weight:650;background:#184d3d;color:white}button.secondary{background:#eaf0e6;color:#184d3d}button.remove{background:transparent;color:#804038;padding:4px 0;font-size:13px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #d2a92c;outline-offset:3px}.bill{padding:16px 0;border-top:1px solid #e2e7df}#results{position:sticky;top:20px;background:#183d34;color:white}#results p,#results small{color:#d0ded4}.metric{padding:15px 0;border-bottom:1px solid #527063}.metric strong{display:block;font-size:32px;letter-spacing:-1px}.metric span{font-size:14px}.notice{padding:14px;border-radius:9px;background:#edf3d8;color:#244337;margin:18px 0}.warning{background:#fff1d4;color:#68470b}#error{color:#8a2d20;background:#fff0ec;padding:15px;border-radius:9px}footer{font-size:13px;color:#52645b;margin:25px 0}progress{width:100%;accent-color:#d6e49b}#breakdown{font-size:14px;padding-left:20px}.actions{display:flex;gap:12px;flex-wrap:wrap}.hidden{display:none}@media(max-width:760px){.grid{display:block}#results{position:static}.fields{grid-template-columns:1fr}header span{float:none;display:inline-block;margin-left:12px}main{padding:24px 16px}.card{padding:20px}}
+</style>
+<header><strong>Mudda Freedom<span>Calculator preview</span></strong></header>
+<main>
+<div class="eyebrow">SMALL STEPS. MORE FREEDOM.</div>
+<h1>See what your daily payday<br>could look like.</h1>
+<p>Start with sample numbers, then try your own. We’ll calculate your daily bill allocation, daily free money, and the starting funds needed for upcoming bills.</p>
+<div class="notice">Your entries stay in this page. Nothing is sent to a bank or saved after you close it. No bank passwords needed.</div>
+<div id="browser-help" class="notice warning" role="status">If the buttons do not respond, this preview may be blocking the calculator. Download the HTML file and open it in Chrome, Edge, Firefox, or Safari on your computer.</div>
+<div class="actions"><button id="sample" class="secondary" type="button">Try sample numbers</button><button id="clear" class="secondary" type="button">Clear entries</button></div>
+<div class="grid">
+<form id="calculator" novalidate>
+<section class="card"><h2>1. Your income</h2><div class="fields">
+<label>Take-home paycheck ($)<input name="income" required inputmode="decimal" placeholder="1000.00" pattern="[0-9]+([.][0-9]{1,2})?"></label>
+<label>How often are you paid?<select name="incomeFrequency"><option value="BIWEEKLY">Every two weeks</option value="WEEKLY">Weekly</option value="SEMIMONTHLY">Twice a month</option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option><option value="SEMIANNUAL">Twice a year</option><option value="ANNUAL">Yearly</option></select></label>
+</div><small>If your pay varies, enter the average or lowest typical paycheck you choose. This preview does not choose for you.</small></section>
+<section class="card"><h2>2. Your bills</h2><p>Include food, transportation, and other regular expenses. Enter each bill’s next payment date.</p><div id="bills"></div><button type="button" id="add" class="secondary">+ Add a bill</button></section>
+<section class="card"><h2>3. Starting funds & timing</h2>
+<div class="fields"><label>Plan start date<input type="date" name="start" required></label><label>Savings you choose to use ($)<input name="saved" value="0" required inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?"></label></div>
+<small>Only include money you want to use for this plan. Keep emergency savings you need.</small>
+<label>When a daily transfer falls on a bank holiday<select name="rule"><option value="unknown">I’m not sure yet</option><option value="previous">Previous business day</option><option value="following">Following business day</option><option value="skip">Transfer is skipped</option></select></label>
+<div class="fields"><label>Transfer arrival delay (business days)<input name="delay" type="number" min="0" max="10" value="0" required></label><label>Bank holidays in this period<small>Dates separated by commas (YYYY-MM-DD)</small><input name="holidays" placeholder="2026-12-25, 2027-01-01"></label></div>
+<small>Confirm these rules with your bank. Until a rule is selected, the reserve estimate credits no uncertain daily deposits. Bill payment dates are treated as actual withdrawal dates.</small>
+</section>
+<div id="error" role="alert" tabindex="-1" hidden></div><button type="submit" style="width:100%;margin-top:15px">Calculate my daily plan</button>
+</form>
+<aside id="results" class="card" aria-live="polite" tabindex="-1"><h2>Your daily picture</h2><div id="empty"><p>Your results will appear here after you enter your numbers.</p><small>The original method: annual amount ÷ 52, round to cents, then ÷ 5 and round again.</small></div><div id="output" hidden>
+<div class="metric"><span>Daily Bill Pay</span><strong id="billDaily"></strong></div><div class="metric"><span>Daily Free Money</span><strong id="freeDaily"></strong></div>
+<p id="allocationMessage"></p><ul id="breakdown"></ul>
+<div class="metric"><span>Starting reserve needed for scheduled bills</span><strong id="reserve"></strong></div><p id="horizon"></p>
+<label for="progress">Savings toward this estimate</label><progress id="progress" max="100" value="0"></progress><p id="savings"></p><p id="remaining"></p>
+<div class="notice warning" id="status"></div><small>This is a bill-funding estimate, not permission to activate. It does not yet validate employer deposit timing, Holding Account balances, a full month’s migration minimum, or a personalized buffer. Projections are not guarantees.</small>
+</div></aside>
+</div>
+<footer>Daily transfers are scheduled Monday–Friday. Annual bills are paid once per year. This preview models 12 months of bills using the next due dates you enter. Closing or refreshing the page clears your entries.</footer>
+</main>
+<script>
+// Integer cents preserve Python's confirmed half-up-at-each-step rule.
+const frequencies = {WEEKLY:52, BIWEEKLY:26, SEMIMONTHLY:24,
+  MONTHLY:12, QUARTERLY:4, SEMIANNUAL:2, ANNUAL:1};
+function cents(value) {
+  if (typeof value !== 'string' || !/^\d{1,10}(\.\d{1,2})?$/.test(value))
+    throw new Error('Enter a nonnegative dollar amount with at most two decimal places.');
+  const [whole, fraction=''] = value.split('.');
+  return BigInt(whole)*100n + BigInt(fraction.padEnd(2,'0'));
+}
+function dollars(value) {
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  return `${negative?'-':''}$${(absolute/100n).toLocaleString('en-US')}.${String(absolute%100n).padStart(2,'0')}`;
+}
+function divide(value, divisor) {return (value + divisor/2n)/divisor;}
+function allocation(value, frequency) {
+  if (!Object.hasOwn(frequencies,frequency)) throw new Error('Choose a supported frequency.');
+  const annual = cents(value)*BigInt(frequencies[frequency]);
+  const weekly = divide(annual,52n);
+  return {annual,weekly,daily:divide(weekly,5n)};
+}
+function parseDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Enter a valid date.');
+  const result=new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(result.getTime()) || result.toISOString().slice(0,10)!==value)
+    throw new Error('Enter a valid calendar date.');
+  return result;
+}
+const iso = day => day.toISOString().slice(0,10);
+const addDays = (day,count) => new Date(day.getTime()+count*86400000);
+function addMonths(day,count) {
+  const first=new Date(Date.UTC(day.getUTCFullYear(),day.getUTCMonth()+count,1));
+  const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();
+  first.setUTCDate(Math.min(day.getUTCDate(),last));
+  return first;
+}
+function business(day,holidays) {return ![0,6].includes(day.getUTCDay()) && !holidays.has(iso(day));}
+function arrival(day,holidays,rule,delay) {
+  if (rule==='unknown') return null; // No uncertain arrivals credited to reserves.
+  while (!business(day,holidays)) {
+    if (rule==='skip') return null;
+    day=addDays(day,rule==='previous'?-1:1);
+  }
+  while (delay>0) {
+    day=addDays(day,1);
+    if (business(day,holidays)) delay--;
+  }
+  return day;
+}
+function paymentDates(first,frequency,end) {
+  if (!['MONTHLY','QUARTERLY','SEMIANNUAL','ANNUAL','WEEKLY','BIWEEKLY'].includes(frequency))
+    throw new Error('Choose a supported bill frequency.');
+  const dates=[];
+  for (let i=0;i<800;i++) {
+    const day=frequency==='WEEKLY'||frequency==='BIWEEKLY'
+      ? addDays(first,i*(frequency==='WEEKLY'?7:14))
+      : addMonths(first,i*({MONTHLY:1,QUARTERLY:3,SEMIANNUAL:6,ANNUAL:12}[frequency]));
+    if (day>end) break;
+    dates.push(day);
+  }
+  return dates;
+}
+function calculate(input) {
+  const start=parseDate(input.start), end=addMonths(start,12);
+  const income=allocation(input.income,input.incomeFrequency);
+  const saved=cents(input.saved);
+  const holidays=new Set((input.holidays||[]).map(value=>iso(parseDate(value))));
+  if (!['unknown','previous','following','skip'].includes(input.rule)) throw new Error('Choose a transfer rule.');
+  if (!Number.isInteger(input.delay)||input.delay<0||input.delay>10) throw new Error('Transfer delay must be 0–10 business days.');
+  if (!Array.isArray(input.bills)||input.bills.length===0||input.bills.length>100) throw new Error('Add between 1 and 100 bills.');
+  const events=[], bills=[];
+  let billDaily=0n;
+  for (const bill of input.bills) {
+    const due=parseDate(bill.due);
+    if (due<start||due>end) throw new Error('Each next bill date must fall within the next 12 months.');
+    const allocated=allocation(bill.amount,bill.frequency);
+    billDaily+=allocated.daily;
+    bills.push({...bill,...allocated});
+    for (const day of paymentDates(due,bill.frequency,end))
+      events.push({day:iso(day),order:0,delta:-cents(bill.amount)});
+  }
+  // Five separately scheduled weekdays; shifted collisions retain each amount.
+  for (let scheduled=start;scheduled<=end;scheduled=addDays(scheduled,1)) {
+    if ([0,6].includes(scheduled.getUTCDay())) continue;
+    const day=arrival(scheduled,holidays,input.rule,input.delay);
+    if (day && day>=start && day<=end) events.push({day:iso(day),order:1,delta:billDaily});
+  }
+  events.sort((a,b)=>a.day.localeCompare(b.day)||a.order-b.order);
+  let balance=0n, required=0n;
+  for (const event of events) {
+    balance+=event.delta;
+    if (-balance>required) required=-balance;
+  }
+  return {income,bills,billDaily,freeDaily:income.daily-billDaily,required,saved,
+    remaining:required>saved?required-saved:0n,through:iso(end),
+    bankingKnown:input.rule!=='unknown'};
+}
+
+</script>
+<script>
+const form=document.querySelector('#calculator'), billList=document.querySelector('#bills');
+document.querySelector('#browser-help').hidden=true;
+let nextId=0;
+function field(name){return form.elements.namedItem(name)}
+function invalidate(){document.querySelector('#output').hidden=true;document.querySelector('#empty').hidden=false;document.querySelector('#error').hidden=true;}
+function addBill(data={}) {
+  const row=document.createElement('div'); row.className='bill';const id=nextId++;
+  row.innerHTML=`<label for="name-${id}">Bill name</label><input id="name-${id}" data-field="name" required maxlength="80" placeholder="Rent, electricity, insurance…"><div class="fields"><label for="amount-${id}">Bill amount ($)<input id="amount-${id}" data-field="amount" required inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="250.00"></label><label for="frequency-${id}">How often is it paid?<select id="frequency-${id}" data-field="frequency"><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option><option value="SEMIANNUAL">Twice a year</option><option value="ANNUAL">Once a year</option><option value="WEEKLY">Weekly</option><option value="BIWEEKLY">Every two weeks</option></select></label></div><label for="due-${id}">Next payment date<input id="due-${id}" data-field="due" type="date" required></label><button type="button" class="remove">Remove bill</button>`;
+  for(const name of ['name','amount','frequency','due']) if(data[name]) row.querySelector(`[data-field="${name}"]`).value=data[name];
+  row.querySelector('button').onclick=()=>{row.remove();invalidate()};billList.append(row);invalidate();
+}
+document.querySelector('#add').onclick=()=>addBill();
+form.addEventListener('input',invalidate);form.addEventListener('change',invalidate);
+document.querySelector('#clear').onclick=()=>{form.reset();billList.replaceChildren();addBill();invalidate()};
+document.querySelector('#sample').onclick=()=>{
+  form.reset();field('income').value='1000';field('saved').value='500';field('start').value='2026-11-02';field('rule').value='following';field('holidays').value='2026-11-26, 2026-12-25, 2027-01-01';
+  billList.replaceChildren();addBill({name:'Monthly bills',amount:'1000',frequency:'MONTHLY',due:'2026-11-05'});addBill({name:'Annual insurance',amount:'1200',frequency:'ANNUAL',due:'2027-02-01'});
+  form.requestSubmit();
+};
+form.addEventListener('submit',event=>{
+  event.preventDefault();
+  try {
+    const missing=[...form.querySelectorAll('input, select')].find(input=>!input.validity.valid);
+    if(missing){
+      const label=missing.labels?.[0]?.textContent.trim() || 'the highlighted field';
+      const box=document.querySelector('#error');
+      box.textContent=`Please check ${label}: ${missing.validationMessage}`;
+      box.hidden=false;document.querySelector('#output').hidden=true;
+      missing.setAttribute('aria-invalid','true');
+      missing.addEventListener('input',()=>missing.removeAttribute('aria-invalid'),{once:true});
+      box.focus();box.scrollIntoView({block:'center'});return;
+    }
+    const input={income:field('income').value,incomeFrequency:field('incomeFrequency').value,start:field('start').value,saved:field('saved').value,rule:field('rule').value,delay:Number(field('delay').value),holidays:field('holidays').value.split(',').map(s=>s.trim()).filter(Boolean),bills:[...billList.children].map(row=>Object.fromEntries([...row.querySelectorAll('[data-field]')].map(el=>[el.dataset.field,el.value])))};
+    const result=calculate(input);
+    const text=(id,value)=>document.getElementById(id).textContent=value;
+    text('billDaily',dollars(result.billDaily));text('freeDaily',dollars(result.freeDaily));text('reserve',dollars(result.required));
+    text('allocationMessage',result.freeDaily<0n?'Your bills exceed your daily allocation. Adjust the plan before continuing.':'You’ve identified your daily allocations. Next, review the starting funds and bank timing.');
+    document.querySelector('#breakdown').replaceChildren(...result.bills.map(bill=>{const item=document.createElement('li');item.textContent=`${bill.name}: ${dollars(bill.daily)} per weekday`;return item}));
+    text('horizon',`Based on scheduled bill withdrawals through ${result.through}. Same-day deposits are counted after bill payments.`);
+    const percent=result.required===0n?100:Number((result.saved*10000n/result.required)>10000n?10000n:result.saved*10000n/result.required)/100;
+    document.querySelector('#progress').value=percent;text('savings',`${dollars(result.saved)} chosen toward ${dollars(result.required)} · ${percent.toFixed(1)}%`);
+    text('remaining',`${dollars(result.remaining)} more needed toward this bill reserve estimate.`);
+    text('status',!result.bankingKnown?'Confirm bank timing: no daily arrivals were credited because the holiday rule is unknown.':result.freeDaily<0n?'Plan needs adjustment: daily expenses exceed daily income.':result.remaining>0n?'Keep building your reserve before considering activation.':'This bill reserve estimate is covered. Full cash-flow and banking checks are still required.');
+    document.querySelector('#empty').hidden=true;document.querySelector('#output').hidden=false;document.querySelector('#error').hidden=true;
+    const results=document.querySelector('#results');results.focus({preventScroll:true});results.scrollIntoView({block:'start'});
+  } catch(error) {const box=document.querySelector('#error');box.textContent=error.message;box.hidden=false;document.querySelector('#output').hidden=true;box.focus();box.scrollIntoView({block:'center'});}
+});
+addBill();
+</script>
+</html>

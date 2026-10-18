@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import {createRequire} from 'node:module';
+import {calculate, allocation, cents} from '../web/calculator.mjs';
+const require=createRequire(import.meta.url);
+const {chromium}=require('playwright');
+
+const input={income:'1000',incomeFrequency:'BIWEEKLY',saved:'250',start:'2026-01-01',
+  rule:'following',delay:0,holidays:[],bills:[{name:'Insurance',amount:'1200',frequency:'ANNUAL',due:'2026-01-01'}]};
+assert.equal(calculate(input).required,120000n);
+assert.equal(calculate(input).remaining,95000n);
+assert.equal(allocation('250','MONTHLY').daily,1154n);
+assert.throws(()=>cents('0.001'));
+assert.throws(()=>calculate({...input,delay:-1}));
+assert.throws(()=>calculate({...input,start:'2026-02-30'}));
+const unknown=calculate({...input,rule:'unknown',bills:[{...input.bills[0],due:'2026-12-31'}]});
+assert.equal(unknown.required,120000n);
+// The horizon includes the next annual payment too; delays leave a larger gap.
+const late=calculate({...input,delay:10});assert.equal(late.required,124038n);
+
+const html=fs.readFileSync(new URL('../Mudda-Freedom-Calculator.html',import.meta.url));
+const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(html)});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+let browser;
+try {
+  browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium'});
+  const page=await browser.newPage({viewport:{width:1280,height:900}});
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const external=[];page.on('request',req=>{if(!req.url().startsWith('http://127.0.0.1:')) external.push(req.url())});
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  assert.equal(await page.locator('#output').isVisible(),false);
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.equal(await page.locator('#error').isVisible(),true);
+  assert.match(await page.locator('#error').innerText(),/Take-home paycheck/);
+  assert.equal(await page.locator('#error').evaluate(el=>el===document.activeElement),true);
+  assert.equal(await page.locator('#browser-help').isVisible(),false);
+  await page.getByRole('button',{name:'Try sample numbers'}).click();
+  assert.equal(await page.locator('#billDaily').innerText(),'$50.77');
+  assert.equal(await page.locator('#freeDaily').innerText(),'$49.23');
+  assert.equal(await page.locator('#reserve').innerText(),'$1,696.87');
+  assert.match(await page.locator('#status').innerText(),/Keep building/);
+  await page.locator('[name=saved]').fill('99999');
+  assert.equal(await page.locator('#output').isVisible(),false,'Edits invalidate previous results');
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.match(await page.locator('#status').innerText(),/checks are still required/);
+  await page.locator('[name=income]').fill('1');
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.match(await page.locator('#status').innerText(),/expenses exceed/);
+  await page.locator('[name=rule]').selectOption('unknown');
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.match(await page.locator('#status').innerText(),/no daily arrivals/);
+  await page.locator('[name=holidays]').fill('bad-date');
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.match(await page.locator('#error').innerText(),/valid date/);
+  await page.getByRole('button',{name:'Try sample numbers'}).click();
+  await page.locator('[data-field=name]').first().fill('<img src=x onerror=alert(1)>');
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.equal(await page.locator('#breakdown img').count(),0);
+  assert.match(await page.locator('#breakdown').innerText(),/<img/);
+  await page.getByRole('button',{name:'Try sample numbers'}).click();
+  await page.screenshot({path:'/tmp/mudda-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Calculate my daily plan'}).click();
+  assert.equal(await page.locator('#results').evaluate(el=>el===document.activeElement),true);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'/tmp/mudda-mobile.png',fullPage:true});
+  await page.getByRole('button',{name:'Clear entries'}).click();
+  assert.equal(await page.locator('#output').isVisible(),false);
+  assert.equal(await page.locator('.bill').count(),1);
+  assert.equal(await page.locator('[name=income]').inputValue(),'');
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+  const noScript=await browser.newContext({javaScriptEnabled:false});
+  const preview=await noScript.newPage();
+  await preview.goto(`http://127.0.0.1:${server.address().port}`);
+  assert.equal(await preview.locator('#browser-help').isVisible(),true);
+  await noScript.close();
+  console.log('Browser checks passed: sample calculation, savings, shortages, unknown timing, errors, safe text rendering, stale results, mobile layout, clear entries; no external requests.');
+} finally {
+  if(browser) await browser.close();
+  await new Promise(resolve=>server.close(resolve));
+}
